@@ -19,19 +19,19 @@ std::ostream& operator<<(std::ostream& os, const std::vector<int>& vec) {
 
 
 int main() {
-	/*std::string dir = "weights";
+	std::string dir = "weights";
 	std::unordered_map<std::string, Tensor> weights = load_weights(dir);	
 	int res {};
 
 	for (const auto& pair : weights) {
-		std::cout << pair.first << " Shape: " << pair.second.shape << " Length: " <<  pair.second.numel() << "\n";
+		std::cout << pair.first << " Shape: " << pair.second.shape() << " Length: " <<  pair.second.numel() << "\n";
 		res += pair.second.numel();
 	
 	}	
 
-	std::cout << "\n\nTotal Count of floats: " << res << "\n";*/
+	std::cout << "\n\nTotal Count of floats: " << res << "\n";
 
-	Tensor a ({3,4});
+	/*Tensor a ({3,4});
 	a.at(1,2) = 23;
 	std::cout << "At pos (1, 2), the tensor holds --> " << a.at(1, 2) << "\n";
 	Tensor b = std::move(a);
@@ -44,7 +44,7 @@ int main() {
 
 	Tensor d = b.view({2,6});
 	std::cout << "New shape of b as told by d is --> " << d.shape() << "\n";
-	if (b.data() == d.data()) std::cout << "Yet they point to the same live buffer... isn't that amazing!\n\n\n";
+	if (b.data() == d.data()) std::cout << "Yet they point to the same live buffer... isn't that amazing!\n\n\n";*/
 
 	return 0;
 
