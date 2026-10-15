@@ -98,3 +98,38 @@ void gelu(const Tensor& A, Tensor& R) {
 	R = std::move(res);
 }
 
+
+// adder for element-wise addition (same shape)
+void add(const Tensor& A, const Tensor& B, Tensor& R) {
+	Tensor res (A.shape());
+
+	for (int i=0; i<A.numel(); ++i) *(res.data() + i) = *(A.data() + i) + *(B.data() + i);
+	R = std::move(res);
+
+}
+
+// swaps rows and cols of a 2D matrix [M x N] -> [N x M]
+void transpose(const Tensor& A, Tensor& R) {
+	int M = A.shape()[0];
+	int N = A.shape()[1];
+	Tensor res({N, M});
+
+	for (int m = 0; m < M; ++m)
+		for (int n = 0; n < N; ++n)
+			res.data()[n * M + m] = A.data()[m * N + n];
+
+	R = std::move(res);
+}
+
+// broadcasts bias [D] across each row of A [T x D]
+void add_bias(const Tensor& A, const Tensor& bias, Tensor& R) {
+	int T = A.shape()[0];
+	int D = A.shape()[1];
+	Tensor res(A.shape());
+
+	for (int t = 0; t < T; ++t)
+		for (int d = 0; d < D; ++d)
+			res.data()[t * D + d] = A.data()[t * D + d] + bias.data()[d];
+
+	R = std::move(res);
+}
