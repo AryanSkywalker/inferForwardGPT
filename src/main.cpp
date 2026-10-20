@@ -6,6 +6,7 @@
 #include "weights.h"
 #include "model.h"
 #include "ops.h"
+#include "tokenizer.h"
 
 std::ostream& operator<<(std::ostream& os, const std::vector<int>& vec) {
     if (vec.empty()) {
@@ -87,6 +88,18 @@ int main() {
 
 	std::cout << "shape check : " << (shape_ok ? "PASS" : "FAIL") << "\n";
 	std::cout << "nan/inf check: " << (clean   ? "PASS" : "FAIL") << "\n";
+
+	// --- tokenizer smoke test ---
+	std::string curr_dir = ".";
+	std::cout << "\n--- tokenizer smoke test ---\n";
+	Tokenizer tok;
+	tok.load(curr_dir);
+	std::vector<int> ids = tok.encode("Hello world");
+	std::string roundtrip = tok.decode(ids);
+	std::cout << "input   : Hello world\n";
+	std::cout << "ids     : " << ids << "\n";
+	std::cout << "decoded : " << roundtrip << "\n";
+	std::cout << "round-trip: " << (roundtrip == "Hello world" ? "PASS" : "FAIL") << "\n";
 
 	return 0;
 
