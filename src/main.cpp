@@ -7,6 +7,7 @@
 #include "model.h"
 #include "ops.h"
 #include "tokenizer.h"
+#include "tensor.h"
 
 std::ostream& operator<<(std::ostream& os, const std::vector<int>& vec) {
     if (vec.empty()) {
@@ -20,6 +21,120 @@ std::ostream& operator<<(std::ostream& os, const std::vector<int>& vec) {
     }
     
     return os;
+}
+
+
+// takes wte and wpe of the trained GPT2 and the list of token IDS [say length T], and returns the input for the transformer network
+// shape of return [T, 768]
+Tensor embed(std::vector<int> ids, const Tensor& wte, const Tensor& wpe) {
+	// result Tensor res
+	int T = ids.size();
+	Tensor res {{T, 768}};
+
+	// for each id, we look at that id^th row in the wte Tensor
+	// also the position's row is looked at in the wpe Tensor
+	// both 768 length vectors are added and then put in the res
+	for (int i=0; i<T; ++i) {
+		int id = ids[i];
+		
+		for (int j=0; j<768; ++j) res.data()[i*768 + j] = wte.data()[id*768 + j] + wpe.data()[i*768 + j];
+
+	}
+
+	return res;
+}
+
+
+// full forward pass of GPT2
+// this is where it all comes together
+Tensor gpt2_forward(const Tensor& tokens, const std::unordered_map<std::string, Tensor>& weights) {
+	Tensor passing_t {tokens};
+
+	// first pass the tokens through 12 blocks of weights
+	for (int p=0; p<12; ++p) {
+		std::string prefix = "h." + std::to_string(p) + ".";
+
+		AttentionWeights attnWt {
+			weights.at(prefix + "attn.c_attn.weight"),
+			weights.at(prefix + "attn.c_attn.bias"),
+			weights.at(prefix + "attn.c_proj.weight"),
+			weights.at(prefix + "attn.c_proj.bias")
+		};
+
+		MLPWeights mlpWt {
+			weights.at(prefix + "mlp.c_fc.weight"),
+			weights.at(prefix + "mlp.c_fc.bias"),
+			weights.at(prefix + "mlp.c_proj.weight"),
+			weights.at(prefix + "mlp.c_proj.bias")
+		};
+
+		BlockWeights blockWt {
+			weights.at(prefix + "ln_1.weight"),
+			weights.at(prefix + "ln_1.bias"),
+			weights.at(prefix + "ln_2.weight"),
+			weights.at(prefix + "ln_2.bias"),
+			attnWt,
+			mlpWt
+		};
+
+		// now we pass the coming in tensor through the block
+		Tensor new_passing_t {passing_t.shape()};
+		transformer_block(passing_t, blockWt, new_passing_t);
+		passing_t = new_passing_t;
+
+	}
+
+	// now passing_t contains the tokens transformed via the blocks
+	// passing_t is given to layer_norm
+	Tensor norm_t {passing_t.shape()};
+	layer_norm(passing_t, weights.at("ln_f.weight"), weights.at("ln_f.bias"), norm_t);
+
+	// finally, we project norm_t [T x 768] into [T x 50257] space
+	Tensor id_space ({1, 1});
+	Tensor transposed_wte ({1, 1});
+	transpose(weights.at("wte.weight"), transposed_wte);
+	matmul(norm_t, transposed_wte, id_space);
+
+	// return the logits
+	return id_space;
+
+} 
+
+
+// given the logit space [T x 50257], from the last row, select the id based on argmax
+int sample(const Tensor& logits) {
+	int T = logits.shape()[0];
+	int argmax = 0;
+
+	for (int i=1; i<50257; ++i) if (logits.data()[(T-1)*50257 + argmax] < logits.data()[(T-1)*50257 + i]) argmax = i;
+
+	return argmax;
+}
+
+
+// generates up to max_tokens new tokens given a prompt string
+std::string generate(const std::string& prompt, int max_tokens,
+                     const std::unordered_map<std::string, Tensor>& weights,
+                     Tokenizer& tok) {
+	std::vector<int> ids = tok.encode(prompt);
+
+	for (int step = 0; step < max_tokens; ++step) {
+		// embed current sequence
+		Tensor x = embed(ids, weights.at("wte.weight"), weights.at("wpe.weight"));
+
+		// full forward pass → logits [T x 50257]
+		Tensor logits = gpt2_forward(x, weights);
+
+		// pick next token greedily
+		int next_id = sample(logits);
+
+		// GPT-2 EOS token is 50256
+		if (next_id == 50256) break;
+
+		ids.push_back(next_id);
+	}
+
+	return tok.decode(ids);
 }
 
 
@@ -43,8 +158,6 @@ int main() {
 	if (a.empty()) std::cout << "Gawwd damn, a went poof\n";
 	std::cout << "Sanity check, b at pos (1, 2) holds --> " << b.at(1, 2) << "\n";
 	Tensor c = b;
-	c.at(1,2) = 99;
-	std::cout << "Now c pos(1, 2) holds --> " << c.at(1, 2) << "\n";
 	std::cout << "For love's sake, b pos(1, 2) holds --> " << b.at(1, 2) << "\n";	
 
 	Tensor d = b.view({2,6});
@@ -94,12 +207,19 @@ int main() {
 	std::cout << "\n--- tokenizer smoke test ---\n";
 	Tokenizer tok;
 	tok.load(curr_dir);
-	std::vector<int> ids = tok.encode("Hello world");
+	std::vector<int> ids = tok.encode("Cat named Larry, kills the dog.");
 	std::string roundtrip = tok.decode(ids);
-	std::cout << "input   : Hello world\n";
+	std::cout << "input   : Cat named Larry, kills the dog.\n";
 	std::cout << "ids     : " << ids << "\n";
 	std::cout << "decoded : " << roundtrip << "\n";
-	std::cout << "round-trip: " << (roundtrip == "Hello world" ? "PASS" : "FAIL") << "\n";
+	std::cout << "round-trip: " << (roundtrip == "Cat named Larry, kills the dog." ? "PASS" : "FAIL") << "\n";
+
+
+	// full pass check
+	std::cout << "\n--- full pass check ---\n";
+	std::string output = generate("Hello there!", 20, weights, tok);
+	std::cout << output << "\n";
+	
 
 	return 0;
 
