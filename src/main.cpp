@@ -207,17 +207,17 @@ int main() {
 	std::cout << "\n--- tokenizer smoke test ---\n";
 	Tokenizer tok;
 	tok.load(curr_dir);
-	std::vector<int> ids = tok.encode("Cat named Larry, kills the dog.");
+	std::vector<int> ids = tok.encode("We live in a twilight world,");
 	std::string roundtrip = tok.decode(ids);
-	std::cout << "input   : Cat named Larry, kills the dog.\n";
+	std::cout << "input   : We live in a twilight world, \n";
 	std::cout << "ids     : " << ids << "\n";
 	std::cout << "decoded : " << roundtrip << "\n";
-	std::cout << "round-trip: " << (roundtrip == "Cat named Larry, kills the dog." ? "PASS" : "FAIL") << "\n";
+	std::cout << "round-trip: " << (roundtrip == "We live in a twilight world," ? "PASS" : "FAIL") << "\n";
 
 
 	// full pass check
 	std::cout << "\n--- full pass check ---\n";
-	std::string output = generate("Hello there!", 20, weights, tok);
+	std::string output = generate("We live in a twilight world,", 20, weights, tok);
 	std::cout << output << "\n";
 	
 
